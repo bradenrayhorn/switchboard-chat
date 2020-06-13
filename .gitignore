@@ -4,3 +4,5 @@
 .idea/tasks.xml
 .idea/dataSources.xml
 config.yml
+jwt_rsa
+jwt_rsa.pub

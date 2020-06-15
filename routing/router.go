@@ -1,13 +1,15 @@
 package routing
 
 import (
+	"github.com/bradenrayhorn/switchboard-chat/hub"
 	"github.com/bradenrayhorn/switchboard-chat/middleware"
 	"github.com/gin-gonic/gin"
 	"net/http"
 )
 
-func MakeRouter() *gin.Engine {
+func MakeRouter(hub *hub.Hub) *gin.Engine {
 	router := gin.Default()
+	router.Use(middleware.HubMiddleware(hub))
 	applyRoutes(router)
 	return router
 }

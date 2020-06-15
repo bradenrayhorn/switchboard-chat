@@ -30,6 +30,7 @@ func LoadConfig() {
 	_ = viper.BindEnv("mongo_password", "MONGO_PASSWORD")
 	_ = viper.BindEnv("mongo_database", "MONGO_DATABASE")
 	_ = viper.BindEnv("rsa_path", "RSA_PATH")
+	_ = viper.BindEnv("core_grpc_host", "CORE_GRPC_HOST")
 
 	loadRsaKey()
 }

@@ -8,10 +8,10 @@ import (
 )
 
 type GroupMessage struct {
-	Message  string
-	GroupId  string `json:"group_id"`
-	ClientId ksuid.KSUID
-	UserId   string
+	Message  string      `json:"message"`
+	GroupId  string      `json:"group_id"`
+	ClientId ksuid.KSUID `json:"client_id"`
+	UserId   string      `json:"user_id"`
 }
 
 type Hub struct {
@@ -57,7 +57,8 @@ func (h *Hub) Start() {
 				// add client to list
 				h.clients[newClient.id] = newClient
 				// send existing messages
-				newClient.sendQueue <- "welcome"
+				// newClient.sendQueue <- "welcome"
+				log.Printf("client count %d", len(h.clients))
 			}
 		case client := <-h.Unregister:
 			client.conn.Close()
@@ -65,6 +66,7 @@ func (h *Hub) Start() {
 			for _, groupId := range client.groupIds {
 				delete(h.groups[groupId], client.id)
 			}
+			log.Printf("client count %d", len(h.clients))
 		}
 	}
 }

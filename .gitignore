@@ -6,3 +6,4 @@
 config.yml
 jwt_rsa
 jwt_rsa.pub
+switchboard-chat

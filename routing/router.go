@@ -4,6 +4,7 @@ import (
 	"github.com/bradenrayhorn/switchboard-chat/hub"
 	"github.com/bradenrayhorn/switchboard-chat/middleware"
 	"github.com/gin-gonic/gin"
+	"github.com/spf13/viper"
 	"net/http"
 )
 
@@ -15,11 +16,12 @@ func MakeRouter(hub *hub.Hub) *gin.Engine {
 }
 
 func applyRoutes(router *gin.Engine) {
-	router.GET("/health-check", func(context *gin.Context) {
+	base := router.Group(viper.GetString("base_url"))
+	base.GET("/health-check", func(context *gin.Context) {
 		context.String(http.StatusOK, "ok")
 	})
 
-	api := router.Group("/api")
+	api := base.Group("")
 	api.Use(middleware.AuthMiddleware())
 
 	api.GET("/ws", ConnectWebsocket)

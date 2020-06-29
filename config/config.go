@@ -23,6 +23,7 @@ func LoadConfig() {
 
 	viper.SetDefault("token_expiration", time.Hour*24)
 	viper.SetDefault("rsa_path", "jwt_rsa")
+	viper.SetDefault("base_url", "/api")
 
 	_ = viper.BindEnv("mongo_host", "MONGO_HOST")
 	_ = viper.BindEnv("mongo_port", "MONGO_PORT")
@@ -31,6 +32,7 @@ func LoadConfig() {
 	_ = viper.BindEnv("mongo_database", "MONGO_DATABASE")
 	_ = viper.BindEnv("rsa_path", "RSA_PATH")
 	_ = viper.BindEnv("core_grpc_host", "CORE_GRPC_HOST")
+	_ = viper.BindEnv("base_url", "BASE_URL")
 
 	loadRsaKey()
 }

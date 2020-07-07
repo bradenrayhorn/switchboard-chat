@@ -22,3 +22,12 @@ jobs:
           registry: registry.gitlab.com
           repository: bradenr/switchboard-chat
           tags: latest
+
+      - name: Set up kubectl
+        uses: matootie/dokube@v1.3.2
+        with:
+          personalAccessToken: ${{ secrets.DIGITAL_OCEAN_TOKEN }}
+          clusterName: mykube
+
+      - name: Rollout Kubernetes deployment
+        run: kubectl rollout restart deployment/switchboard-chat

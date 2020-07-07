@@ -18,20 +18,21 @@ func main() {
 
 	log.Printf("connecting to database...")
 	database.Setup()
+	redisDB := database.MakeRedisClient()
 	log.Printf("database connected!")
 
 	log.Printf("starting servers...")
-	startServers()
+	startServers(redisDB)
 }
 
-func startServers() {
+func startServers(redis *database.RedisDB) {
 	// start gRPC
 	log.Print("starting grpc client...")
 	grpcClient := grpc.NewClient()
 
 	// start chat hub
 	log.Print("starting hub...")
-	chatHub := hub.NewHub(&grpcClient)
+	chatHub := hub.NewHub(&grpcClient, redis)
 	go chatHub.Start()
 
 	// start gin router

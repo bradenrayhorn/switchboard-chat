@@ -8,8 +8,6 @@ import (
 	"github.com/bradenrayhorn/switchboard-chat/grpc"
 	"github.com/segmentio/ksuid"
 	"log"
-	"sort"
-	"sync"
 )
 
 const GroupChannelPrefix = "group-"
@@ -29,8 +27,7 @@ type Hub struct {
 	redis       *database.RedisDB
 	clients     map[ksuid.KSUID]*Client
 	users       *Users
-	groups      map[string]map[ksuid.KSUID]*Client
-	groupLock   sync.RWMutex
+	groups      *Groups
 	groupChange chan bool
 	usersChange chan bool
 }
@@ -43,7 +40,7 @@ func NewHub(grpcClient *grpc.Client, redis *database.RedisDB) Hub {
 		redis:       redis,
 		clients:     make(map[ksuid.KSUID]*Client, 0),
 		users:       NewUsers(),
-		groups:      make(map[string]map[ksuid.KSUID]*Client, 0),
+		groups:      NewGroups(),
 		groupChange: make(chan bool),
 		usersChange: make(chan bool),
 	}
@@ -63,7 +60,7 @@ func (h *Hub) startChatRedis() {
 		end := make(chan bool)
 		go func() {
 			log.Println("opening new redis subscription")
-			ps := h.redis.Client.Subscribe(context.Background(), h.getGroupChannelIDs()...)
+			ps := h.redis.Client.Subscribe(context.Background(), h.groups.getGroupIDs(GroupChannelPrefix)...)
 		redisLoop:
 			for {
 				select {
@@ -130,29 +127,22 @@ func (h *Hub) startProcessing() {
 		select {
 		case newClient := <-h.Register:
 			// fetch groups
-			groups, err := h.grpcClient.GetGroups(newClient.userId)
+			groups, err := h.grpcClient.GetGroups(newClient.userID)
 			if err != nil {
 				log.Println(err)
 				newClient.conn.Close()
 			} else {
 				// add client data
 				newClient.hub = h
-				sort.Strings(groups)
-				newClient.groupIds = groups
+				newClient.groupIDs = groups
 				// add client to users list
-				h.users.addUser(newClient.userId, newClient.id)
+				h.users.addUser(newClient.userID, newClient.id)
 				h.usersChange <- true
 				// add or update groups
-				h.groupLock.Lock()
-				for _, groupId := range groups {
-					if _, ok := h.groups[groupId]; ok {
-						h.groups[groupId][newClient.id] = newClient
-					} else {
-						h.groups[groupId] = map[ksuid.KSUID]*Client{newClient.id: newClient}
-						h.groupChange <- true
-					}
+				changed := h.groups.addClient(groups, newClient)
+				if changed {
+					h.groupChange <- true
 				}
-				h.groupLock.Unlock()
 				// add client to list
 				h.clients[newClient.id] = newClient
 				// send existing messages
@@ -161,20 +151,15 @@ func (h *Hub) startProcessing() {
 		case client := <-h.Unregister:
 			client.conn.Close()
 			// remove from users list
-			h.users.removeUser(client.userId, client.id)
+			h.users.removeUser(client.userID, client.id)
 			h.usersChange <- true
 			// remove from clients list
 			delete(h.clients, client.id)
 			// remove from and groups
-			h.groupLock.Lock()
-			for _, groupId := range client.groupIds {
-				delete(h.groups[groupId], client.id)
-				if len(h.groups[groupId]) == 0 {
-					delete(h.groups, groupId)
-				}
+			changed := h.groups.removeClient(client)
+			if changed {
+				h.groupChange <- true
 			}
-			h.groupLock.Unlock()
-			h.groupChange <- true
 			log.Printf("client count %d", len(h.clients))
 		}
 	}
@@ -182,13 +167,11 @@ func (h *Hub) startProcessing() {
 
 // Sends a chat message to all clients in a group.
 func (h *Hub) distributeChatMessage(message GroupMessage) {
-	h.groupLock.RLock()
-	defer h.groupLock.RUnlock()
 	socketMessage := SocketMessage{
 		SocketMessageType: Message,
 		Body:              message,
 	}
-	for _, client := range h.groups[message.GroupId] {
+	for _, client := range h.groups.getClientMap(message.GroupId) {
 		if message.ClientId == client.id {
 			continue
 		}
@@ -204,16 +187,4 @@ func (h *Hub) sendMessage(message GroupMessage) {
 		return
 	}
 	h.redis.Client.Publish(context.Background(), GroupChannelPrefix+message.GroupId, string(bytes))
-}
-
-func (h *Hub) getGroupChannelIDs() []string {
-	h.groupLock.RLock()
-	defer h.groupLock.RUnlock()
-	groupIDs := make([]string, len(h.groups))
-	i := 0
-	for k := range h.groups {
-		groupIDs[i] = GroupChannelPrefix + k
-		i++
-	}
-	return groupIDs
 }

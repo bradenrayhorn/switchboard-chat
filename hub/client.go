@@ -13,8 +13,8 @@ type Client struct {
 	conn      *websocket.Conn
 	hub       *Hub
 	sendQueue chan interface{}
-	userId    string
-	groupIds  []string
+	userID    string
+	groupIDs  []string
 }
 
 func NewClient(conn *websocket.Conn, userId string) Client {
@@ -22,8 +22,8 @@ func NewClient(conn *websocket.Conn, userId string) Client {
 		id:        ksuid.New(),
 		conn:      conn,
 		sendQueue: make(chan interface{}),
-		userId:    userId,
-		groupIds:  make([]string, 0),
+		userID:    userId,
+		groupIDs:  make([]string, 0),
 	}
 }
 
@@ -41,8 +41,8 @@ func (c *Client) StartRead() {
 		data := GroupMessage{}
 		err = json.Unmarshal(message, &data)
 		if err == nil {
-			if i := sort.SearchStrings(c.groupIds, data.GroupId); i < len(c.groupIds) && c.groupIds[i] == data.GroupId {
-				data.UserId = c.userId
+			if i := sort.SearchStrings(c.groupIDs, data.GroupId); i < len(c.groupIDs) && c.groupIDs[i] == data.GroupId {
+				data.UserId = c.userID
 				data.ClientId = c.id
 				c.hub.sendMessage(data)
 			}

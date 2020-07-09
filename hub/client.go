@@ -67,3 +67,7 @@ func (c *Client) StartWrite() {
 		}
 	}
 }
+
+func (c *Client) sendMessage(message SocketMessage) {
+	c.sendQueue <- message
+}

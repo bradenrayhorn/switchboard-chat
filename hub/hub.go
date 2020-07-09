@@ -76,7 +76,7 @@ func (h *Hub) startChatRedis() {
 					data := GroupMessage{}
 					err := json.Unmarshal([]byte(msg.Payload), &data)
 					if err == nil {
-						h.distributeMessage(data)
+						h.distributeChatMessage(data)
 					}
 				case <-end:
 					log.Println("closing redis subscription")
@@ -180,16 +180,20 @@ func (h *Hub) startProcessing() {
 	}
 }
 
-// Distributes a message to all clients connected to this chat instance.
-func (h *Hub) distributeMessage(message GroupMessage) {
+// Sends a chat message to all clients in a group.
+func (h *Hub) distributeChatMessage(message GroupMessage) {
 	h.groupLock.RLock()
-	for _, clients := range h.groups[message.GroupId] {
-		if message.ClientId == clients.id {
+	defer h.groupLock.RUnlock()
+	socketMessage := SocketMessage{
+		SocketMessageType: Message,
+		Body:              message,
+	}
+	for _, client := range h.groups[message.GroupId] {
+		if message.ClientId == client.id {
 			continue
 		}
-		clients.sendQueue <- message
+		client.sendMessage(socketMessage)
 	}
-	h.groupLock.RUnlock()
 }
 
 // Pushes a message to Redis for processing by Chat.

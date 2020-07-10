@@ -32,6 +32,34 @@ func (g *Groups) addClient(groups []string, client *Client) bool {
 	return changed
 }
 
+func (g *Groups) updateClient(groups []string, client *Client) bool {
+	g.lock.Lock()
+	defer g.lock.Unlock()
+	changed := false
+	existingGroups := make(map[string]bool, 0)
+	// add client to any new groups
+	for _, groupID := range groups {
+		existingGroups[groupID] = true
+		if _, ok := g.groups[groupID]; ok {
+			g.groups[groupID][client.id] = client
+		} else {
+			g.groups[groupID] = map[ksuid.KSUID]*Client{client.id: client}
+			changed = true
+		}
+	}
+	// remove client from groups no longer apart of
+	for _, groupID := range client.groupIDs {
+		if _, ok := existingGroups[groupID]; !ok {
+			delete(g.groups[groupID], client.id)
+			if len(g.groups[groupID]) == 0 {
+				delete(g.groups, groupID)
+				changed = true
+			}
+		}
+	}
+	return changed
+}
+
 func (g *Groups) removeClient(client *Client) bool {
 	g.lock.Lock()
 	defer g.lock.Unlock()

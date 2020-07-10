@@ -8,6 +8,7 @@ import (
 	"github.com/bradenrayhorn/switchboard-chat/grpc"
 	"github.com/segmentio/ksuid"
 	"log"
+	"sync"
 )
 
 const GroupChannelPrefix = "group-"
@@ -25,6 +26,7 @@ type Hub struct {
 	Unregister  chan *Client
 	grpcClient  *grpc.Client
 	redis       *database.RedisDB
+	clientLock  sync.RWMutex
 	clients     map[ksuid.KSUID]*Client
 	users       *Users
 	groups      *Groups
@@ -107,6 +109,42 @@ func (h *Hub) startUserRedis() {
 						break
 					}
 					fmt.Printf("got message on %s = %s;\n", msg.Channel, msg.Payload)
+					message := RedisMessage{}
+					err := json.Unmarshal([]byte(msg.Payload), &message)
+					if err == nil {
+						switch message.RedisMessageType {
+						case RedisGroupsChanged:
+							groupMessage := RedisGroupChangedMessage{}
+							err := json.Unmarshal([]byte(msg.Payload), &groupMessage)
+							if err == nil {
+								userID := msg.Channel[len(UserChannelPrefix):]
+								groups := groupMessage.Body.Groups
+								anyChanged := false
+								// make message
+								message := SocketMessage{
+									SocketMessageType: GroupChange,
+								}
+								// for every client user is in update groups
+								for _, clientID := range h.users.getClientIDs(userID) {
+									// update data
+									h.clientLock.Lock()
+									changed := h.groups.updateClient(groups, h.clients[clientID])
+									h.clients[clientID].groupIDs = groups
+									if changed {
+										anyChanged = true
+									}
+									// send message to client
+									h.clients[clientID].sendMessage(message)
+									h.clientLock.Unlock()
+								}
+								// if any group changed update subscription
+								if anyChanged {
+									h.groupChange <- true
+								}
+							}
+							break
+						}
+					}
 				case <-end:
 					log.Println("closing user redis subscription")
 					err := ps.Close()
@@ -144,7 +182,9 @@ func (h *Hub) startProcessing() {
 					h.groupChange <- true
 				}
 				// add client to list
+				h.clientLock.Lock()
 				h.clients[newClient.id] = newClient
+				h.clientLock.Unlock()
 				// send existing messages
 				log.Printf("client count %d", len(h.clients))
 			}
@@ -154,7 +194,9 @@ func (h *Hub) startProcessing() {
 			h.users.removeUser(client.userID, client.id)
 			h.usersChange <- true
 			// remove from clients list
+			h.clientLock.Lock()
 			delete(h.clients, client.id)
+			h.clientLock.Unlock()
 			// remove from and groups
 			changed := h.groups.removeClient(client)
 			if changed {

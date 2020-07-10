@@ -32,27 +32,25 @@ func (g *Groups) addClient(groups []string, client *Client) bool {
 	return changed
 }
 
-func (g *Groups) updateClient(groups []string, client *Client) bool {
+func (g *Groups) updateClient(groupJoined string, groupLeft string, client *Client) bool {
 	g.lock.Lock()
 	defer g.lock.Unlock()
 	changed := false
-	existingGroups := make(map[string]bool, 0)
-	// add client to any new groups
-	for _, groupID := range groups {
-		existingGroups[groupID] = true
-		if _, ok := g.groups[groupID]; ok {
-			g.groups[groupID][client.id] = client
+	// add client to new group
+	if len(groupJoined) > 0 {
+		if _, ok := g.groups[groupJoined]; ok {
+			g.groups[groupJoined][client.id] = client
 		} else {
-			g.groups[groupID] = map[ksuid.KSUID]*Client{client.id: client}
+			g.groups[groupJoined] = map[ksuid.KSUID]*Client{client.id: client}
 			changed = true
 		}
 	}
-	// remove client from groups no longer apart of
-	for _, groupID := range client.groupIDs {
-		if _, ok := existingGroups[groupID]; !ok {
-			delete(g.groups[groupID], client.id)
-			if len(g.groups[groupID]) == 0 {
-				delete(g.groups, groupID)
+	// remove client from group
+	if len(groupLeft) > 0 {
+		if _, ok := g.groups[groupLeft]; ok {
+			delete(g.groups[groupLeft], client.id)
+			if len(g.groups[groupLeft]) == 0 {
+				delete(g.groups, groupLeft)
 				changed = true
 			}
 		}

@@ -30,6 +30,7 @@ type RedisMessage struct {
 type RedisGroupChangedMessage struct {
 	RedisMessage
 	Body struct {
-		Groups []string `json:"groups"`
+		GroupJoined string `json:"group_joined"`
+		GroupLeft   string `json:"group_left"`
 	} `json:"body"`
 }

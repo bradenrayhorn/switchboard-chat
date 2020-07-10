@@ -118,7 +118,8 @@ func (h *Hub) startUserRedis() {
 							err := json.Unmarshal([]byte(msg.Payload), &groupMessage)
 							if err == nil {
 								userID := msg.Channel[len(UserChannelPrefix):]
-								groups := groupMessage.Body.Groups
+								groupJoined := groupMessage.Body.GroupJoined
+								groupLeft := groupMessage.Body.GroupLeft
 								anyChanged := false
 								// make message
 								message := SocketMessage{
@@ -128,8 +129,21 @@ func (h *Hub) startUserRedis() {
 								for _, clientID := range h.users.getClientIDs(userID) {
 									// update data
 									h.clientLock.Lock()
-									changed := h.groups.updateClient(groups, h.clients[clientID])
-									h.clients[clientID].groupIDs = groups
+									changed := h.groups.updateClient(groupJoined, groupLeft, h.clients[clientID])
+									newGroupIDs := make([]string, 0)
+									alreadyJoined := false
+									for _, groupID := range h.clients[clientID].groupIDs {
+										if groupID != groupLeft {
+											newGroupIDs = append(newGroupIDs, groupID)
+										}
+										if groupID == groupJoined {
+											alreadyJoined = true
+										}
+									}
+									if !alreadyJoined {
+										newGroupIDs = append(newGroupIDs, groupJoined)
+									}
+									h.clients[clientID].groupIDs = newGroupIDs
 									if changed {
 										anyChanged = true
 									}
